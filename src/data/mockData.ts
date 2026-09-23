@@ -1,0 +1,7 @@
+export const categories = [{ id: 'personal-finance', name: 'Personal Finance', icon: '💰', color: 'bg-green-500', topics: 12400, posts: 48700, description: 'Budgeting, savings, loans.' }];
+export const communities = [{ id: 'c1', name: 'Personal Finance NG', slug: 'personal-finance-ng', country: 'NG', members: 45200, posts: 12800, icon: '💰', color: 'bg-green-500', description: 'Discuss savings.' }];
+export const creators = [{ id: 'u1', username: 'FinanceGuru', displayName: 'Adaobi Nwosu', avatar: '👩🏾‍💼', country: 'NG', followers: 24500, posts: 342, verified: true, creator: true, bio: 'Financial educator.' }];
+export const posts = [{ id: 'p1', title: 'Which bank gives the best interest rate?', content: 'Looking for a reliable bank.', author: { username: 'danieltech', displayName: 'DanielTech', avatar: '👨🏾', badge: 'New Member' }, category: 'Personal Finance', country: 'NG', community: 'Personal Finance NG', timestamp: '2h ago', views: 3200, likes: 23, replies: 45, shares: 12, trending: true, tags: ['banking'] }];
+export const replies = [{ id: 'r1', author: { username: 'financequeen', displayName: 'FinanceQueen', avatar: '👩🏾‍💼', badge: 'Trusted Member' }, content: 'I use GTBank.', timestamp: '2h ago', likes: 18 }];
+export const notifications = [{ id: 'n1', type: 'like', user: 'FinanceQueen', content: 'liked your post', post: 'Which bank...', time: '5m ago', read: false }];
+export const trendingTopics = [{ tag: '#NigerianEconomy', posts: 12400 }];
