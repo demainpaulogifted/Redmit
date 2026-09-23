@@ -38,7 +38,7 @@ export type Post = {
   is_trending: boolean
   tags: string[]
   created_at: string
-  profiles: Profile // Joined data
+  profiles: Profile
 }
 
 export type Reply = {
@@ -50,5 +50,5 @@ export type Reply = {
   likes_count: number
   is_verified_answer: boolean
   created_at: string
-  profiles: Profile // Joined data
+  profiles: Profile
 }
