@@ -14,16 +14,8 @@ export const creators = [
 ]
 
 export const posts = [
-  {
-    id: 'p1', title: 'Which bank gives the best interest rate on savings in Nigeria?', content: 'I\'m looking for a reliable bank in Nigeria with a good interest rate on savings accounts.',
-    author: { username: 'danieltech', displayName: 'DanielTech', avatar: '👨🏾', badge: 'New Member' }, category: 'Personal Finance', country: 'NG', community: 'Personal Finance NG',
-    timestamp: '2h ago', views: 3200, likes: 23, replies: 45, shares: 12, trending: true, tags: ['banking', 'savings', 'nigeria'],
-  },
-  {
-    id: 'p2', title: 'Best budget phones under ₦150,000 in 2025?', content: 'Looking to upgrade my phone but on a tight budget. What are the best options under 150k naira right now?',
-    author: { username: 'techbro', displayName: 'TechBro', avatar: '👨🏻‍💻', badge: 'Trusted Member' }, category: 'Technology & Gadgets', country: 'NG', community: 'Tech Hub Global',
-    timestamp: '3h ago', views: 5100, likes: 67, replies: 89, shares: 34, trending: true, tags: ['phones', 'budget', 'android'],
-  },
+  { id: 'p1', title: 'Which bank gives the best interest rate on savings in Nigeria?', content: 'I\'m looking for a reliable bank in Nigeria with a good interest rate on savings accounts.', author: { username: 'danieltech', displayName: 'DanielTech', avatar: '👨🏾', badge: 'New Member' }, category: 'Personal Finance', country: 'NG', community: 'Personal Finance NG', timestamp: '2h ago', views: 3200, likes: 23, replies: 45, shares: 12, trending: true, tags: ['banking', 'savings', 'nigeria'] },
+  { id: 'p2', title: 'Best budget phones under ₦150,000 in 2025?', content: 'Looking to upgrade my phone but on a tight budget. What are the best options under 150k naira right now?', author: { username: 'techbro', displayName: 'TechBro', avatar: '👨🏻‍💻', badge: 'Trusted Member' }, category: 'Technology & Gadgets', country: 'NG', community: 'Tech Hub Global', timestamp: '3h ago', views: 5100, likes: 67, replies: 89, shares: 34, trending: true, tags: ['phones', 'budget', 'android'] },
 ]
 
 export const replies = [
