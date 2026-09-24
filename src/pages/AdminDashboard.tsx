@@ -89,20 +89,49 @@ export default function AdminDashboard() {
 
       {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>}
 
+      {/* Create Ad Form - Wrapped together */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2"><Plus className="w-5 h-5" /> Create New Ad</h2>
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ad Title" className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-          <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="Image URL (https://...)" className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+        
+        <div className="space-y-4">
+          {/* Row 1: Title + Image */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Ad Title *</label>
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Learn to Code" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Image URL</label>
+              <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+            </div>
+          </div>
+
+          {/* Row 2: Description */}
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1 block">Ad Description *</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your ad..." rows={3} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+          </div>
+
+          {/* Row 3: Link + Countries */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Destination URL</label>
+              <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Target Countries</label>
+              <input value={targetCountries} onChange={e => setTargetCountries(e.target.value)} placeholder="NG, US, UK" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button onClick={handleCreateAd} disabled={loading} className="w-full md:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-lg">
+            {loading ? 'Creating...' : 'Publish Ad'}
+          </button>
         </div>
-        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Ad Description" rows={3} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm mb-4" />
-        <div className="grid md:grid-cols-2 gap-4 mb-4">
-          <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="Destination URL (https://...)" className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-          <input value={targetCountries} onChange={e => setTargetCountries(e.target.value)} placeholder="Target Countries (e.g., NG, US)" className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-        </div>
-        <button onClick={handleCreateAd} disabled={loading} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-lg">{loading ? 'Creating...' : 'Publish Ad'}</button>
       </div>
 
+      {/* Ads List */}
       <h2 className="text-lg font-bold text-gray-900 mb-4">Active Campaigns & Analytics</h2>
       <div className="space-y-3">
         {ads.length === 0 ? (
