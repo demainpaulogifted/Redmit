@@ -12,18 +12,40 @@ export default function Home() {
   const [posts, setPosts] = useState<any[]>([])
   const [userInterests, setUserInterests] = useState<string[]>([])
 
+  // 1. Fetch user interests when they log in
   useEffect(() => {
     if (user) {
-      fetchUserInterests()
+      fetchUserInterests(user.id)
     }
-    fetchRealPosts()
   }, [user])
 
-  const fetchUserInterests = async () => {
+  // 2. Fetch posts on load
+  useEffect(() => {
+    fetchRealPosts()
+  }, [])
+
+  // 3. Sort posts intelligently when interests are loaded
+  useEffect(() => {
+    if (posts.length > 0 && userInterests.length > 0) {
+      setPosts(prevPosts => {
+        const sorted = [...prevPosts]
+        sorted.sort((a, b) => {
+          const aMatches = userInterests.includes(a.category)
+          const bMatches = userInterests.includes(b.category)
+          if (aMatches && !bMatches) return -1
+          if (!aMatches && bMatches) return 1
+          return 0
+        })
+        return sorted
+      })
+    }
+  }, [userInterests])
+
+  const fetchUserInterests = async (userId: string) => {
     const { data } = await supabase
       .from('profiles')
       .select('interests')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
     
     if (data?.interests) {
@@ -44,7 +66,6 @@ export default function Home() {
     if (data && !error) {
       const mappedPosts = data.map((p: any) => {
         const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
-        // Find the category name based on the category_id
         const cat = categories.find(c => c.id === p.category_id)
         
         return {
@@ -63,25 +84,12 @@ export default function Home() {
           categoryId: p.category_id
         }
       })
-
-      // 🧠 SMART FEED LOGIC: Sort posts to show user's interests first
-      if (userInterests.length > 0) {
-        mappedPosts.sort((a, b) => {
-          const aMatches = userInterests.includes(a.category)
-          const bMatches = userInterests.includes(b.category)
-          if (aMatches && !bMatches) return -1
-          if (!aMatches && bMatches) return 1
-          return 0
-        })
-      }
-
       setPosts(mappedPosts)
     }
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Hero Section */}
       <div className="relative overflow-hidden rounded-2xl bg-[#0f172a] p-6 md:p-8 mb-6 md:mb-8">
         <h1 className="text-2xl md:text-4xl font-bold text-white mb-3">
           {user ? `Welcome back! 👋` : `Real People. Real Conversations.`}
@@ -100,7 +108,6 @@ export default function Home() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6 md:space-y-8">
           
-          {/* Smart Feed Indicator */}
           {user && userInterests.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
               <Sparkles className="w-4 h-4" />
@@ -126,7 +133,6 @@ export default function Home() {
           </section>
         </div>
 
-        {/* Sidebar */}
         <div className="hidden lg:block space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
