@@ -29,7 +29,6 @@ export default function CreatePost() {
       imageUrl = publicUrl
     }
 
-    // Use first 50 chars of content as title automatically
     const autoTitle = content.length > 50 ? content.substring(0, 50) + '...' : content
 
     const { error } = await supabase.from('posts').insert([{ 
@@ -37,7 +36,7 @@ export default function CreatePost() {
       content, 
       image_url: imageUrl, 
       author_id: user.id, 
-      category_id: categoryId 
+      category_id: categoryId
     }])
     setLoading(false)
     
