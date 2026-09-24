@@ -6,7 +6,6 @@ import { categories } from '../data/mockData'
 import { Image as ImageIcon, Upload } from 'lucide-react'
 
 export default function CreatePost() {
-  const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -16,27 +15,29 @@ export default function CreatePost() {
 
   const handlePost = async () => {
     if (!user) return navigate('/login')
-    if (!title || !content || !categoryId) return alert('Please fill in title, content, and category')
+    if (!content || !categoryId) return alert('Please write your question and select a category')
     
     setLoading(true)
     let imageUrl = ''
 
-    // 1. Upload Image if selected
     if (imageFile) {
       const fileExt = imageFile.name.split('.').pop()
       const fileName = `${user.id}/${Date.now()}.${fileExt}`
-      const { data, error: uploadError } = await supabase.storage.from('uploads').upload(fileName, imageFile)
-      
+      const { error: uploadError } = await supabase.storage.from('uploads').upload(fileName, imageFile)
       if (uploadError) { alert('Image upload failed'); setLoading(false); return; }
-      
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(fileName)
       imageUrl = publicUrl
     }
 
-    // 2. Save Post to Database
+    // Use first 50 chars of content as title automatically
+    const autoTitle = content.length > 50 ? content.substring(0, 50) + '...' : content
+
     const { error } = await supabase.from('posts').insert([{ 
-      title, content, image_url: imageUrl, author_id: user.id, category_id: categoryId 
+      title: autoTitle, 
+      content, 
+      image_url: imageUrl, 
+      author_id: user.id, 
+      category_id: categoryId 
     }])
     setLoading(false)
     
@@ -45,8 +46,8 @@ export default function CreatePost() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Create New Post</h1>
+    <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Ask a Question</h1>
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <div className="mb-4">
           <label className="text-sm font-medium text-gray-700 mb-1.5 block">Category</label>
@@ -56,15 +57,10 @@ export default function CreatePost() {
           </select>
         </div>
         <div className="mb-4">
-          <label className="text-sm font-medium text-gray-700 mb-1.5 block">Title</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Enter a clear title" className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-        </div>
-        <div className="mb-4">
-          <label className="text-sm font-medium text-gray-700 mb-1.5 block">Content</label>
-          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Write your question or discussion here..." rows={6} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
+          <label className="text-sm font-medium text-gray-700 mb-1.5 block">Your Question</label>
+          <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="What would you like to ask? Be specific..." rows={8} className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
         </div>
         
-        {/* Image Upload from Gallery */}
         <div className="mb-6">
           <label className="text-sm font-medium text-gray-700 mb-1.5 block flex items-center gap-1.5">
             <ImageIcon className="w-4 h-4" /> Add Image (Optional)
@@ -79,7 +75,7 @@ export default function CreatePost() {
         </div>
 
         <button onClick={handlePost} disabled={loading} className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-lg">
-          {loading ? 'Posting...' : 'Post Topic'}
+          {loading ? 'Posting...' : 'Post Question'}
         </button>
       </div>
     </div>
