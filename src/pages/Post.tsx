@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Image as ImageIcon } from 'lucide-react'
+import Toast from '../components/Toast'
 
 export default function PostPage() {
   const { id } = useParams()
@@ -16,6 +17,11 @@ export default function PostPage() {
   const [loading, setLoading] = useState(false)
   const [likes, setLikes] = useState(0)
   const [liked, setLiked] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'warning'; redirect?: string } | null>(null)
+
+  const requireAuth = (action: string) => {
+    setToast({ message: `Please log in to ${action}`, type: 'info', redirect: '/login' })
+  }
 
   useEffect(() => {
     if (id) {
@@ -48,7 +54,10 @@ export default function PostPage() {
   }
 
   const handleLike = async () => {
-    if (!user) return alert('Please log in to like posts')
+    if (!user) {
+      requireAuth('like posts')
+      return
+    }
     
     const newLikes = liked ? likes - 1 : likes + 1
     setLiked(!liked)
@@ -66,9 +75,12 @@ export default function PostPage() {
   }
 
   const handleSubmitReply = async () => {
-    if (!user) return alert('Please log in to reply')
-    if (!content) return alert('Please write something')
-    if (replyType === 'answer' && !agreesToTerms) return alert('You must agree to the quality pledge')
+    if (!user) {
+      requireAuth('reply to posts')
+      return
+    }
+    if (!content) return setToast({ message: 'Please write something first', type: 'warning' })
+    if (replyType === 'answer' && !agreesToTerms) return setToast({ message: 'You must agree to the quality pledge', type: 'warning' })
 
     setLoading(true)
     const { error } = await supabase.from('replies').insert([{
@@ -80,27 +92,36 @@ export default function PostPage() {
     }])
     setLoading(false)
 
-    if (error) alert('Error: ' + error.message)
+    if (error) setToast({ message: 'Error: ' + error.message, type: 'warning' })
     else {
       setContent('')
       setImageUrl('')
       setAgreesToTerms(false)
+      setToast({ message: 'Posted successfully!', type: 'success' })
       fetchReplies()
     }
   }
 
   if (!post) return <div className="p-8 text-center">Loading...</div>
 
+  const isImageAvatar = post.profiles?.avatar && post.profiles.avatar.startsWith('http')
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+      {toast && <Toast message={toast.message} type={toast.type} redirect={toast.redirect} onClose={() => setToast(null)} />}
+      
       <Link to="/" className="flex items-center gap-2 text-sm text-gray-600 mb-4">
         <ArrowLeft className="w-4 h-4" /> Back
       </Link>
       
       <article className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl flex-shrink-0">
-            {post.profiles?.avatar || '👤'}
+          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden">
+            {isImageAvatar ? (
+              <img src={post.profiles.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              post.profiles?.avatar || '👤'
+            )}
           </div>
           <div>
             <span className="font-semibold text-gray-900">{post.profiles?.display_name || 'Anonymous'}</span>
@@ -111,7 +132,7 @@ export default function PostPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-3">{post.title}</h1>
         <p className="text-gray-700 leading-relaxed mb-4">{post.content}</p>
         
-        {post.image_url && (
+        {post.image_url && post.image_url.startsWith('http') && (
           <img 
             src={post.image_url} 
             alt="Post" 
@@ -212,6 +233,7 @@ export default function PostPage() {
       <div className="space-y-4">
         {replies.map((r: any) => {
           const isAnswer = r.reply_type === 'answer'
+          const replyAvatarIsImage = r.profiles?.avatar && r.profiles.avatar.startsWith('http')
           return (
             <div key={r.id} className={`rounded-xl border p-5 ${isAnswer ? 'bg-blue-50/30 border-blue-200' : 'bg-white border-gray-200'}`}>
               {isAnswer && (
@@ -221,8 +243,12 @@ export default function PostPage() {
                 </div>
               )}
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg flex-shrink-0">
-                  {r.profiles?.avatar || ''}
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
+                  {replyAvatarIsImage ? (
+                    <img src={r.profiles.avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    r.profiles?.avatar || '👤'
+                  )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -232,7 +258,7 @@ export default function PostPage() {
                   <p className={`mt-2 ${isAnswer ? 'text-gray-800 text-base' : 'text-gray-600 text-sm'}`}>
                     {r.content}
                   </p>
-                  {r.image_url && (
+                  {r.image_url && r.image_url.startsWith('http') && (
                     <img 
                       src={r.image_url} 
                       alt="Reply" 
