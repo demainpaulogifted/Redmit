@@ -13,6 +13,9 @@ export default function Profile() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Check if email is verified (Supabase uses email_confirmed_at)
+  const isEmailVerified = !!user?.email_confirmed_at
+
   useEffect(() => {
     if (user) {
       fetchProfile()
@@ -83,7 +86,7 @@ export default function Profile() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl font-bold text-gray-900">{profile.display_name}</h1>
-                {user.email_verified && <BadgeCheck className="w-5 h-5 text-blue-500" />}
+                {isEmailVerified && <BadgeCheck className="w-5 h-5 text-blue-500" />}
               </div>
               <p className="text-gray-500 text-sm">@{profile.username}</p>
               <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
@@ -92,10 +95,17 @@ export default function Profile() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button onClick={handleResendEmail} disabled={loading || user.email_verified} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 text-sm font-medium rounded-lg flex items-center gap-2">
-                <Mail className="w-4 h-4" /> {loading ? 'Sending...' : (user.email_verified ? 'Verified' : 'Verify Email')}
+              <button 
+                onClick={handleResendEmail} 
+                disabled={loading || isEmailVerified} 
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 text-sm font-medium rounded-lg flex items-center gap-2"
+              >
+                <Mail className="w-4 h-4" /> {loading ? 'Sending...' : (isEmailVerified ? 'Verified' : 'Verify Email')}
               </button>
-              <button onClick={async () => { await signOut(); navigate('/') }} className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded-lg flex items-center gap-2">
+              <button 
+                onClick={async () => { await signOut(); navigate('/') }} 
+                className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium rounded-lg flex items-center gap-2"
+              >
                 <LogOut className="w-4 h-4" /> Logout
               </button>
             </div>
