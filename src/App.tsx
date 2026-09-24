@@ -17,6 +17,7 @@ import SearchPage from './pages/Search'
 import CreatePost from './pages/CreatePost'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import AdminDashboard from './pages/AdminDashboard'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/categories" element={<Categories />} />
