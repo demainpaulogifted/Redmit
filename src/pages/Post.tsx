@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Image as ImageIcon } from 'lucide-react'
 import Toast from '../components/Toast'
+import SEO from '../components/SEO'
 
 export default function PostPage() {
   const { id } = useParams()
@@ -109,6 +110,13 @@ export default function PostPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+      {/* 🚀 SEO Component for Google Indexing */}
+      <SEO 
+        title={post.title} 
+        description={post.content.substring(0, 150) + '...'} 
+        url={`${window.location.origin}/post/${id}`}
+      />
+
       {toast && <Toast message={toast.message} type={toast.type} redirect={toast.redirect} onClose={() => setToast(null)} />}
       
       <Link to="/" className="flex items-center gap-2 text-sm text-gray-600 mb-4"><ArrowLeft className="w-4 h-4" /> Back</Link>
