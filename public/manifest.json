@@ -1,0 +1,33 @@
+{
+  "name": "Redmit - Real Discussions",
+  "short_name": "Redmit",
+  "description": "Where money, tech, jobs, and business meet. Real people, real conversations.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["social", "news"],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
+}
