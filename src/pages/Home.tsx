@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { categories } from '../data/mockData'
 import PostCard from '../components/PostCard'
-import CategoryCard from '../components/CategoryCard'
 import { TrendingUp, Users, Sparkles, Clock } from 'lucide-react'
 
 export default function Home() {
@@ -42,8 +41,11 @@ export default function Home() {
       .select('*')
       .eq('is_active', true)
 
+    // Declare mappedPosts outside the if block so it can be used later
+    let currentMappedPosts: any[] = []
+
     if (postData) {
-      const mappedPosts = postData.map((p: any) => {
+      currentMappedPosts = postData.map((p: any) => {
         const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
         const cat = categories.find(c => c.id === p.category_id)
         return {
@@ -55,7 +57,7 @@ export default function Home() {
       })
 
       if (activeTab === 'foryou' && userInterests.length > 0) {
-        mappedPosts.sort((a, b) => {
+        currentMappedPosts.sort((a, b) => {
           const aMatches = userInterests.includes(a.category)
           const bMatches = userInterests.includes(b.category)
           if (aMatches && !bMatches) return -1
@@ -63,12 +65,13 @@ export default function Home() {
           return 0
         })
       }
-      setPosts(mappedPosts)
+      setPosts(currentMappedPosts)
     }
 
     if (adData) {
       setAds(adData)
-      blendIntelligentFeed(mappedPosts, adData)
+      // Now currentMappedPosts is accessible here!
+      blendIntelligentFeed(currentMappedPosts, adData)
     }
   }
 
@@ -77,16 +80,16 @@ export default function Home() {
     const clickedAds = JSON.parse(localStorage.getItem('redmit_clicked_ads') || '[]')
     const seenAds = JSON.parse(localStorage.getItem('redmit_seen_ads') || '[]')
 
-    // Filter out ads the user has already clicked (no point showing them again)
+    // Filter out ads the user has already clicked
     const availableAds = adsList.filter((ad: any) => !clickedAds.includes(ad.id))
 
-    // Sort ads: Prioritize unseen ads. If all seen, rotate by global views (give underperforming ads a chance)
+    // Sort ads: Prioritize unseen ads. If all seen, rotate by global views
     availableAds.sort((a: any, b: any) => {
       const aSeen = seenAds.includes(a.id)
       const bSeen = seenAds.includes(b.id)
-      if (!aSeen && bSeen) return -1 // 'a' is unseen, prioritize it
-      if (aSeen && !bSeen) return 1  // 'b' is unseen, prioritize it
-      return (a.views || 0) - (b.views || 0) // Fallback: show ads with fewer global views
+      if (!aSeen && bSeen) return -1 
+      if (aSeen && !bSeen) return 1  
+      return (a.views || 0) - (b.views || 0) 
     })
 
     const blended = [...postsList]
@@ -174,7 +177,6 @@ export default function Home() {
             {feed.length > 0 ? feed.map((item: any) => {
               // Render Native Ad
               if (item.isAd) {
-                // Trigger view log when rendered
                 logAdView(item.id)
                 return (
                   <div key={`ad-${item.id}`} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
