@@ -8,6 +8,30 @@ export type Category = {
   posts_count: number
 }
 
+export type Community = {
+  id: string
+  name: string
+  slug: string
+  country: string
+  members_count: number
+  posts_count: number
+  icon: string | null
+  color: string | null
+  description: string | null
+}
+
+export type Creator = {
+  id: string
+  username: string
+  display_name: string
+  avatar: string | null
+  bio: string | null
+  country: string
+  followers_count: number
+  following_count: number
+  is_creator: boolean
+}
+
 export type Profile = {
   id: string
   username: string
