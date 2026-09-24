@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Heart, MessageCircle, Share2, Bookmark, TrendingUp } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -12,10 +12,27 @@ interface PostCardProps {
 export default function PostCard({ post }: PostCardProps) {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [likes, setLikes] = useState(post.likes || post.likes_count || 0)
+  const [likes, setLikes] = useState(post.likes_count || 0)
   const [liked, setLiked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'warning'; redirect?: string } | null>(null)
+
+  useEffect(() => {
+    if (user) {
+      checkIfLiked()
+    }
+  }, [user, post.id])
+
+  const checkIfLiked = async () => {
+    const { data } = await supabase
+      .from('post_likes')
+      .select('*')
+      .eq('user_id', user?.id)
+      .eq('post_id', post.id)
+      .single()
+    
+    setLiked(!!data)
+  }
 
   const requireAuth = (action: string) => {
     setToast({ message: `Please log in to ${action}`, type: 'info', redirect: '/login' })
@@ -32,19 +49,27 @@ export default function PostCard({ post }: PostCardProps) {
     if (loading) return
     
     setLoading(true)
-    setLiked(!liked)
-    setLikes(liked ? likes - 1 : likes + 1)
     
-    const { error } = await supabase
-      .from('posts')
-      .update({ likes_count: liked ? likes - 1 : likes + 1 })
-      .eq('id', post.id)
-    
-    if (error) {
-      setLiked(liked)
-      setLikes(liked ? likes + 1 : likes - 1)
-      setToast({ message: 'Failed to like post', type: 'warning' })
+    if (liked) {
+      // Unlike
+      await supabase
+        .from('post_likes')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('post_id', post.id)
+      
+      setLiked(false)
+      setLikes(likes - 1)
+    } else {
+      // Like
+      await supabase
+        .from('post_likes')
+        .insert([{ user_id: user.id, post_id: post.id }])
+      
+      setLiked(true)
+      setLikes(likes + 1)
     }
+    
     setLoading(false)
   }
 
@@ -103,7 +128,7 @@ export default function PostCard({ post }: PostCardProps) {
             {likes}
           </button>
           <button className="flex items-center gap-1 text-gray-500 hover:text-blue-600 text-sm font-medium">
-            <MessageCircle className="w-4 h-4" /> {post.replies || post.replies_count || 0}
+            <MessageCircle className="w-4 h-4" /> {post.replies_count || 0}
           </button>
           <button className="flex items-center gap-1 text-gray-500 hover:text-green-600 text-sm font-medium">
             <Share2 className="w-4 h-4" /> {post.shares || 0}
