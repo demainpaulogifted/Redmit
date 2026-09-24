@@ -7,7 +7,8 @@ import CategoryCard from '../components/CategoryCard'
 import { TrendingUp, Users } from 'lucide-react'
 
 export default function Home() {
-  const [posts, setPosts] = useState([])
+  // Explicitly tell TypeScript this is an array of any objects
+  const [posts, setPosts] = useState<any[]>([])
 
   useEffect(() => {
     fetchRealPosts()
@@ -24,20 +25,25 @@ export default function Home() {
       .limit(10)
 
     if (data && !error) {
-      const mappedPosts = data.map(p => ({
-        id: p.id,
-        title: p.title,
-        content: p.content,
-        author: { 
-          displayName: p.profiles?.display_name || 'Anonymous', 
-          avatar: p.profiles?.avatar || '', 
-          badge: 'Member' 
-        },
-        category: 'General', 
-        community: 'Global',
-        timestamp: new Date(p.created_at).toLocaleDateString(),
-        likes: 0, replies: 0, shares: 0, tags: [], trending: false
-      }))
+      const mappedPosts = data.map((p: any) => {
+        // Safely handle if Supabase returns an array or a single object for profiles
+        const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
+        
+        return {
+          id: p.id,
+          title: p.title,
+          content: p.content,
+          author: { 
+            displayName: profile?.display_name || 'Anonymous', 
+            avatar: profile?.avatar || '👤', 
+            badge: 'Member' 
+          },
+          category: 'General', 
+          community: 'Global',
+          timestamp: new Date(p.created_at).toLocaleDateString(),
+          likes: 0, replies: 0, shares: 0, tags: [], trending: false
+        }
+      })
       setPosts(mappedPosts)
     }
   }
