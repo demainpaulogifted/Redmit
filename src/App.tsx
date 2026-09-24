@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
-import { AppProvider } from './context/AppContext'
+import { AuthProvider } from './context/AuthContext'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Categories from './pages/Categories'
@@ -9,7 +9,7 @@ import Communities from './pages/Communities'
 import CommunityPage from './pages/Community'
 import Creators from './pages/Creators'
 import CreatorPage from './pages/Creator'
-import CreatorSettings from './pages/CreatorSettings' // <-- Added
+import CreatorSettings from './pages/CreatorSettings'
 import Trending from './pages/Trending'
 import Profile from './pages/Profile'
 import Notifications from './pages/Notifications'
@@ -20,7 +20,7 @@ import Signup from './pages/Signup'
 
 export default function App() {
   return (
-    <AppProvider>
+    <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
@@ -33,7 +33,7 @@ export default function App() {
           <Route path="/community/:slug" element={<CommunityPage />} />
           <Route path="/creators" element={<Creators />} />
           <Route path="/creator/:username" element={<CreatorPage />} />
-          <Route path="/creator/settings" element={<CreatorSettings />} /> {/* <-- Added */}
+          <Route path="/creator/settings" element={<CreatorSettings />} />
           <Route path="/trending" element={<Trending />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/notifications" element={<Notifications />} />
@@ -41,6 +41,6 @@ export default function App() {
           <Route path="/create" element={<CreatePost />} />
         </Route>
       </Routes>
-    </AppProvider>
+    </AuthProvider>
   )
 }
