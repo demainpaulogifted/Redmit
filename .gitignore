@@ -43,4 +43,5 @@ tsconfig.tsbuildinfo
 .vite
 
 # OS
-Thumbs.db
+Thumbs.db.env
+.env

@@ -6,9 +6,7 @@ export default function CategoryPage() {
   const { id } = useParams()
   const category = categories.find(c => c.id === id)
   const categoryPosts = posts.filter(p => p.category === category?.name)
-
   if (!category) return <div className="p-8 text-center text-gray-500">Category not found</div>
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center gap-4 mb-6">
