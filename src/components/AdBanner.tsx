@@ -13,51 +13,41 @@ export default function AdBanner() {
   }, [user])
 
   const fetchSmartAd = async () => {
-    // 1. Get user's country (default to 'NG' if not logged in)
     let userCountry = 'NG'
     if (user) {
       const { data } = await supabase.from('profiles').select('country').eq('id', user.id).single()
       if (data?.country) userCountry = data.country
     }
-
-    // 2. Detect device
-    const isMobile = window.innerWidth < 768
-    const device = isMobile ? 'mobile' : 'desktop'
-
-    // 3. Fetch ads that match the country OR are set to 'all'
-    const { data } = await supabase
-      .from('ads')
-      .select('*')
-      .eq('is_active', true)
-      .limit(1) // Just grab one for now
-    
+    const { data } = await supabase.from('ads').select('*').eq('is_active', true).limit(5)
     if (data && data.length > 0) {
-      // Simple client-side filtering for country/device
-      const matchedAd = data.find((a: any) => 
-        (a.target_countries.includes('ALL') || a.target_countries.includes(userCountry)) &&
-        (a.target_devices.includes('ALL') || a.target_devices.includes(device))
-      )
+      const matchedAd = data.find((a: any) => a.target_countries.includes('ALL') || a.target_countries.includes(userCountry))
       if (matchedAd) setAd(matchedAd)
     }
   }
 
   if (!ad || closed) return null
 
+  // Wrap the whole thing in an <a> tag so title, image, and description are all clickable
   return (
-    <div className="relative bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl p-4 mb-6 text-white shadow-lg">
-      <button onClick={() => setClosed(true)} className="absolute top-2 right-2 p-1 hover:bg-white/20 rounded-full">
+    <a href={ad.link_url || '#'} target="_blank" rel="noopener noreferrer" className="block relative bg-white rounded-xl border border-gray-200 overflow-hidden mb-6 shadow-sm hover:shadow-md transition-shadow">
+      <button onClick={(e) => { e.preventDefault(); setClosed(true) }} className="absolute top-2 right-2 z-10 p-1 bg-black/20 hover:bg-black/40 text-white rounded-full">
         <X className="w-4 h-4" />
       </button>
-      <div className="pr-6">
-        <div className="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1">Sponsored</div>
-        <h3 className="text-lg font-bold mb-1">{ad.title}</h3>
-        <p className="text-sm text-blue-100 mb-3">{ad.description}</p>
-        {ad.link_url && (
-          <a href={ad.link_url} target="_blank" rel="noopener noreferrer" className="inline-block px-4 py-2 bg-white text-blue-700 text-sm font-semibold rounded-lg hover:bg-blue-50 transition-colors">
-            Learn More
-          </a>
-        )}
+      
+      {ad.image_url && (
+        <div className="w-full h-40 md:h-56 bg-gray-100">
+          <img src={ad.image_url} alt={ad.title} className="w-full h-full object-cover" />
+        </div>
+      )}
+      
+      <div className="p-4">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Sponsored</div>
+        <h3 className="text-lg font-bold text-gray-900 mb-1">{ad.title}</h3>
+        <p className="text-sm text-gray-600 mb-3">{ad.description}</p>
+        <div className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg">
+          Learn More →
+        </div>
       </div>
-    </div>
+    </a>
   )
 }
