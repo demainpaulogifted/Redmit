@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { categories } from '../data/mockData'
 import PostCard from '../components/PostCard'
 import CategoryCard from '../components/CategoryCard'
+import AdBanner from '../components/AdBanner' // <-- ADDED IMPORT
 import { TrendingUp, Users, Sparkles } from 'lucide-react'
 
 export default function Home() {
@@ -90,6 +91,7 @@ export default function Home() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Hero Section */}
       <div className="relative overflow-hidden rounded-2xl bg-[#0f172a] p-6 md:p-8 mb-6 md:mb-8">
         <h1 className="text-2xl md:text-4xl font-bold text-white mb-3">
           {user ? `Welcome back! 👋` : `Real People. Real Conversations.`}
@@ -104,6 +106,9 @@ export default function Home() {
           <Link to="/categories" className="px-6 py-3 bg-transparent border border-white text-white font-semibold rounded-lg text-center">Explore Categories</Link>
         </div>
       </div>
+
+      {/* Smart Ad Banner */}
+      <AdBanner />
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6 md:space-y-8">
