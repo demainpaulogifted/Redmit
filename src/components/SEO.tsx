@@ -38,13 +38,16 @@ export default function SEO({ title, description, url }: SEOProps) {
       }
     }
     
-    let scriptTag = document.getElementById('schema-qa')
+    // Explicitly tell TypeScript this is a script tag
+    let scriptTag = document.getElementById('schema-qa') as HTMLScriptElement | null
+    
     if (!scriptTag) {
-      scriptTag = document.createElement('script')
+      scriptTag = document.createElement('script') as HTMLScriptElement
       scriptTag.id = 'schema-qa'
       scriptTag.type = 'application/ld+json'
       document.head.appendChild(scriptTag)
     }
+    
     scriptTag.innerHTML = JSON.stringify(schema)
 
   }, [title, description, url])
