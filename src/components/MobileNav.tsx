@@ -14,11 +14,11 @@ export default function MobileNav() {
     { to: '/categories', label: 'Categories', icon: Grid3x3 },
     { to: '/trending', label: 'Trending', icon: TrendingUp },
     { to: '/communities', label: 'Communities', icon: Users },
-    { to: '/creators', label: 'Creators', icon: Crown },
+    { to: '/creators', label: 'Creator', icon: Crown }, // <-- Changed to 'Creator'
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] pb-safe">
       <div className="flex items-center justify-around h-16 px-2">
         {links.map(l => {
           const isActive = location.pathname === l.to
