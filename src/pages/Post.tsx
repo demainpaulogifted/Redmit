@@ -30,6 +30,12 @@ export default function PostPage() {
     }
   }, [id])
 
+  useEffect(() => {
+    if (user && post) {
+      checkIfLiked()
+    }
+  }, [user, post])
+
   const fetchPost = async () => {
     const { data } = await supabase
       .from('posts')
@@ -53,24 +59,39 @@ export default function PostPage() {
     if (data) setReplies(data)
   }
 
+  const checkIfLiked = async () => {
+    const { data } = await supabase
+      .from('post_likes')
+      .select('*')
+      .eq('user_id', user?.id)
+      .eq('post_id', id)
+      .single()
+    
+    setLiked(!!data)
+  }
+
   const handleLike = async () => {
     if (!user) {
       requireAuth('like posts')
       return
     }
     
-    const newLikes = liked ? likes - 1 : likes + 1
-    setLiked(!liked)
-    setLikes(newLikes)
-    
-    const { error } = await supabase
-      .from('posts')
-      .update({ likes_count: newLikes })
-      .eq('id', id)
-    
-    if (error) {
-      setLiked(liked)
-      setLikes(liked ? likes + 1 : likes - 1)
+    if (liked) {
+      await supabase
+        .from('post_likes')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('post_id', id)
+      
+      setLiked(false)
+      setLikes(likes - 1)
+    } else {
+      await supabase
+        .from('post_likes')
+        .insert([{ user_id: user.id, post_id: id }])
+      
+      setLiked(true)
+      setLikes(likes + 1)
     }
   }
 
@@ -92,13 +113,15 @@ export default function PostPage() {
     }])
     setLoading(false)
 
-    if (error) setToast({ message: 'Error: ' + error.message, type: 'warning' })
-    else {
+    if (error) {
+      setToast({ message: 'Error: ' + error.message, type: 'warning' })
+    } else {
       setContent('')
       setImageUrl('')
       setAgreesToTerms(false)
-      setToast({ message: 'Posted successfully!', type: 'success' })
+      setToast({ message: `${replyType === 'answer' ? 'Answer' : 'Comment'} posted successfully!`, type: 'success' })
       fetchReplies()
+      fetchPost() // Refresh to get updated replies_count
     }
   }
 
@@ -152,7 +175,7 @@ export default function PostPage() {
             {likes} Likes
           </button>
           <button className="flex items-center gap-1.5 text-gray-600 hover:text-blue-600 text-sm font-medium">
-            <MessageCircle className="w-5 h-5" /> {replies.length} Replies
+            <MessageCircle className="w-5 h-5" /> {post.replies_count || 0} Replies
           </button>
           <button className="flex items-center gap-1.5 text-gray-600 hover:text-green-600 text-sm font-medium">
             <Share2 className="w-5 h-5" /> Share
@@ -247,7 +270,7 @@ export default function PostPage() {
                   {replyAvatarIsImage ? (
                     <img src={r.profiles.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    r.profiles?.avatar || '👤'
+                    r.profiles?.avatar || ''
                   )}
                 </div>
                 <div className="flex-1">
