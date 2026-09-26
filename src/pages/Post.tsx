@@ -5,9 +5,50 @@ import { useAuth } from '../context/AuthContext'
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Image as ImageIcon, Gift } from 'lucide-react'
 import Toast from '../components/Toast'
 import SuperThanks from '../components/SuperThanks'
+import SEO from '../components/SEO'
 
-// Your official PayPal link for Super Thanks
-const DEFAULT_PAYPAL_LINK = 'https://www.paypal.com/ncp/payment/UJWZKUPGFQZH2'
+// ================= QUALITY & ANTI-SPAM ENGINE =================
+const SUPER_THANKS_MIN_WORDS = 1000  // Words an answer needs to earn Super Thanks (change here if needed)
+const MIN_UNIQUE_RATIO = 0.4         // 40% of words must be unique (blocks copy-paste spam)
+const MIN_COMMENT_CHARS = 30
+const MIN_ANSWER_WORDS = 100
+const RATE_LIMIT_SECONDS = 60
+const MAX_LINKS = 2
+const SPAM_PATTERNS = [
+  /click here/i, /whatsapp/i, /telegram/i, /crypto giveaway/i, /free money/i,
+  /invest now/i, /dm me/i, /contact me on/i, /claim your/i, /winner/i
+]
+
+function analyzeText(text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  const unique = new Set(words.map(w => w.toLowerCase().replace(/[^a-z0-9']/gi, '')).filter(Boolean))
+  const capsLetters = (text.match(/[A-Z]/g) || []).length
+  const allLetters = (text.match(/[A-Za-z]/g) || []).length
+  return {
+    wordCount: words.length,
+    uniqueWords: unique.size,
+    uniqueRatio: words.length ? unique.size / words.length : 0,
+    capsRatio: allLetters ? capsLetters / allLetters : 0,
+    links: (text.match(/https?:\/\//gi) || []).length
+  }
+}
+
+function spamReason(text: string, isAnswer: boolean): string | null {
+  const a = analyzeText(text)
+  if (isAnswer && a.wordCount < MIN_ANSWER_WORDS) return `Answers must be at least ${MIN_ANSWER_WORDS} words of real value.`
+  if (!isAnswer && text.trim().length < MIN_COMMENT_CHARS) return `Comments must be at least ${MIN_COMMENT_CHARS} characters.`
+  if (a.uniqueRatio < MIN_UNIQUE_RATIO) return 'This reply looks repetitive. Add real, unique points.'
+  if (a.capsRatio > 0.7 && text.length > 20) return 'Please avoid writing in ALL CAPS.'
+  if (a.links > MAX_LINKS) return `Too many links. Maximum ${MAX_LINKS} links per reply.`
+  for (const p of SPAM_PATTERNS) if (p.test(text)) return 'This reply looks like spam or advertisement and was blocked.'
+  return null
+}
+
+function qualifiesForSuperThanks(text: string): boolean {
+  const a = analyzeText(text)
+  return a.wordCount >= SUPER_THANKS_MIN_WORDS && a.uniqueRatio >= MIN_UNIQUE_RATIO
+}
+// ==============================================================
 
 export default function PostPage() {
   const { id } = useParams()
@@ -23,8 +64,6 @@ export default function PostPage() {
   const [liked, setLiked] = useState(false)
   const [bookmarked, setBookmarked] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'warning'; redirect?: string } | null>(null)
-  
-  // Super Thanks State
   const [showSuperThanks, setShowSuperThanks] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<any>(null)
 
@@ -46,7 +85,11 @@ export default function PostPage() {
   }
 
   const fetchReplies = async () => {
-    const { data } = await supabase.from('replies').select('*, profiles:author_id(display_name, avatar, username)').eq('post_id', id).order('created_at', { ascending: true })
+    const { data } = await supabase
+      .from('replies')
+      .select('*, profiles:author_id(display_name, avatar, username, payment_url, super_thanks_enabled)')
+      .eq('post_id', id)
+      .order('created_at', { ascending: true })
     if (data) setReplies(data)
   }
 
@@ -94,8 +137,30 @@ export default function PostPage() {
 
   const handleSubmitReply = async () => {
     if (!user) { requireAuth('reply to posts'); return }
-    if (!content) return setToast({ message: 'Please write something first', type: 'warning' })
+    if (!content.trim()) return setToast({ message: 'Please write something first', type: 'warning' })
     if (replyType === 'answer' && !agreesToTerms) return setToast({ message: 'You must agree to the quality pledge', type: 'warning' })
+
+    // 🛡️ ANTI-SPAM CHECK
+    const spam = spamReason(content, replyType === 'answer')
+    if (spam) return setToast({ message: spam, type: 'warning' })
+
+    // ⏱️ RATE LIMIT + DUPLICATE CHECK
+    const { data: recent } = await supabase
+      .from('replies')
+      .select('created_at, content')
+      .eq('author_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (recent && recent.length > 0) {
+      const secsSince = (Date.now() - new Date(recent[0].created_at).getTime()) / 1000
+      if (secsSince < RATE_LIMIT_SECONDS) {
+        return setToast({ message: `Slow down! Wait ${Math.ceil(RATE_LIMIT_SECONDS - secsSince)}s before posting again.`, type: 'warning' })
+      }
+      if (recent[0].content.trim() === content.trim()) {
+        return setToast({ message: 'You already posted this exact reply.', type: 'warning' })
+      }
+    }
 
     setLoading(true)
     const { error } = await supabase.from('replies').insert([{ post_id: id, author_id: user.id, content, image_url: imageUrl, reply_type: replyType }])
@@ -111,6 +176,10 @@ export default function PostPage() {
 
   const openSuperThanks = (reply: any) => {
     if (!user) { requireAuth('send Super Thanks'); return }
+    if (!reply.profiles?.payment_url) {
+      setToast({ message: `${reply.profiles?.display_name || 'This creator'} hasn't set up Super Thanks yet.`, type: 'info' })
+      return
+    }
     setSelectedAnswer(reply)
     setShowSuperThanks(true)
   }
@@ -118,20 +187,22 @@ export default function PostPage() {
   if (!post) return <div className="p-8 text-center">Loading...</div>
 
   const isImageAvatar = post.profiles?.avatar && post.profiles.avatar.startsWith('http')
+  const currentWords = analyzeText(content).wordCount
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
+      <SEO title={post.title} description={post.content.substring(0, 150) + '...'} url={`${window.location.origin}/post/${id}`} />
       {toast && <Toast message={toast.message} type={toast.type} redirect={toast.redirect} onClose={() => setToast(null)} />}
-      <SuperThanks 
-        open={showSuperThanks} 
-        onClose={() => setShowSuperThanks(false)} 
+      <SuperThanks
+        open={showSuperThanks}
+        onClose={() => setShowSuperThanks(false)}
         creator={selectedAnswer?.profiles?.display_name || 'Creator'}
-        paymentUrl={DEFAULT_PAYPAL_LINK} 
-        isEligible={true}
+        paymentUrl={selectedAnswer?.profiles?.payment_url}
+        isEligible={selectedAnswer?.profiles?.super_thanks_enabled || false}
       />
-      
+
       <Link to="/" className="flex items-center gap-2 text-sm text-gray-600 mb-4"><ArrowLeft className="w-4 h-4" /> Back</Link>
-      
+
       <article className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden">
@@ -163,13 +234,21 @@ export default function PostPage() {
         </div>
       </article>
 
-      {/* Reply Input */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6">
         <div className="flex gap-2 mb-3">
           <button onClick={() => setReplyType('comment')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${replyType === 'comment' ? 'bg-gray-200 text-gray-900' : 'text-gray-500'}`}>💬 Comment</button>
           <button onClick={() => setReplyType('answer')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${replyType === 'answer' ? 'bg-blue-600 text-white' : 'text-gray-500'}`}>📝 Write Answer</button>
         </div>
-        <textarea value={content} onChange={e => setContent(e.target.value)} placeholder={replyType === 'answer' ? "Share your detailed, high-quality answer..." : "Ask a follow-up question..."} rows={replyType === 'answer' ? 6 : 3} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
+        <textarea value={content} onChange={e => setContent(e.target.value)} placeholder={replyType === 'answer' ? "Share your detailed, high-quality answer (1,000+ words qualifies for Super Thanks)..." : "Ask a follow-up question..."} rows={replyType === 'answer' ? 6 : 3} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
+
+        {/* Live quality counter for answers */}
+        {replyType === 'answer' && (
+          <div className={`text-xs mt-1.5 font-medium ${qualifiesForSuperThanks(content) ? 'text-green-600' : 'text-gray-500'}`}>
+            {currentWords} / {SUPER_THANKS_MIN_WORDS} words
+            {qualifiesForSuperThanks(content) ? ' ✅ This answer qualifies for Super Thanks!' : ' — write a detailed, valuable answer to enable Super Thanks'}
+          </div>
+        )}
+
         <div className="mt-3">
           <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1.5"><ImageIcon className="w-3 h-3" /> Image URL (Optional)</label>
           <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm mb-3" />
@@ -187,11 +266,11 @@ export default function PostPage() {
         </div>
       </div>
 
-      {/* Replies List */}
       <h2 className="text-lg font-bold text-gray-900 mb-4">Answers & Comments ({replies.length})</h2>
       <div className="space-y-4">
         {replies.map((r: any) => {
           const isAnswer = r.reply_type === 'answer'
+          const deservesThanks = isAnswer && qualifiesForSuperThanks(r.content)
           const replyAvatarIsImage = r.profiles?.avatar && r.profiles.avatar.startsWith('http')
           return (
             <div key={r.id} className={`rounded-xl border p-5 ${isAnswer ? 'bg-blue-50/30 border-blue-200' : 'bg-white border-gray-200'}`}>
@@ -201,10 +280,12 @@ export default function PostPage() {
                     <ThumbsUp className="w-4 h-4 text-blue-600" />
                     <span className="text-xs font-bold text-blue-700 uppercase">Top Answer</span>
                   </div>
-                  {/* SUPER THANKS BUTTON - ONLY ON ANSWERS */}
-                  <button onClick={() => openSuperThanks(r)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full hover:shadow-lg transition-all">
-                    <Gift className="w-3.5 h-3.5" /> Super Thanks
-                  </button>
+                  {/* Super Thanks ONLY on answers that pass the 1,000-word quality gate */}
+                  {deservesThanks && (
+                    <button onClick={() => openSuperThanks(r)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full hover:shadow-lg transition-all">
+                      <Gift className="w-3.5 h-3.5" /> Super Thanks
+                    </button>
+                  )}
                 </div>
               )}
               <div className="flex items-start gap-3">
@@ -218,7 +299,7 @@ export default function PostPage() {
                     </Link>
                     <span className="text-xs text-gray-500">· {new Date(r.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className={`mt-2 ${isAnswer ? 'text-gray-800 text-base' : 'text-gray-600 text-sm'}`}>{r.content}</p>
+                  <p className={`mt-2 whitespace-pre-line ${isAnswer ? 'text-gray-800 text-base' : 'text-gray-600 text-sm'}`}>{r.content}</p>
                   {r.image_url && r.image_url.startsWith('http') && (
                     <img src={r.image_url} alt="Reply" className="w-full max-h-64 object-cover rounded-lg mt-3" onError={(e) => (e.currentTarget.style.display = 'none')} />
                   )}
