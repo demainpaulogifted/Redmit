@@ -30,7 +30,8 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/category/:id" element={<CategoryPage />} />
-          <Route path="/post/:id" element={<PostPage />} />
+          {/* SEO-friendly slug instead of UUID */}
+          <Route path="/post/:slug" element={<PostPage />} />
           <Route path="/communities" element={<Communities />} />
           <Route path="/community/:slug" element={<CommunityPage />} />
           <Route path="/creators" element={<Creators />} />
