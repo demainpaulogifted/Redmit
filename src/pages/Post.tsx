@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Image as ImageIcon, Gift } from 'lucide-react'
+import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, ThumbsUp, Image as ImageIcon, Gift, CornerDownRight, Sparkles, Clock } from 'lucide-react'
 import Toast from '../components/Toast'
 import SuperThanks from '../components/SuperThanks'
 import SEO from '../components/SEO'
 
 // ================= QUALITY & ANTI-SPAM ENGINE =================
-const SUPER_THANKS_MIN_WORDS = 1000  // Words an answer needs to earn Super Thanks (change here if needed)
-const MIN_UNIQUE_RATIO = 0.4         // 40% of words must be unique (blocks copy-paste spam)
+const SUPER_THANKS_MIN_WORDS = 1000
+const MIN_UNIQUE_RATIO = 0.4
 const MIN_COMMENT_CHARS = 30
 const MIN_ANSWER_WORDS = 100
 const RATE_LIMIT_SECONDS = 60
@@ -48,6 +48,14 @@ function qualifiesForSuperThanks(text: string): boolean {
   const a = analyzeText(text)
   return a.wordCount >= SUPER_THANKS_MIN_WORDS && a.uniqueRatio >= MIN_UNIQUE_RATIO
 }
+
+// Quality score for ranking answers (likes + depth + freshness)
+function answerScore(r: any): number {
+  const words = (r.content || '').trim().split(/\s+/).filter(Boolean).length
+  const hours = (Date.now() - new Date(r.created_at).getTime()) / 3600000
+  const recency = (Math.max(0, 48 - hours) / 48) * 20
+  return (r.likes_count || 0) * 3 + (Math.min(words, 2000) / 100) * 5 + recency
+}
 // ==============================================================
 
 export default function PostPage() {
@@ -55,6 +63,8 @@ export default function PostPage() {
   const { user } = useAuth()
   const [post, setPost] = useState<any>(null)
   const [replies, setReplies] = useState<any[]>([])
+  const [sortedAnswers, setSortedAnswers] = useState<any[]>([])
+  const [answerSort, setAnswerSort] = useState<'best' | 'new'>('best')
   const [replyType, setReplyType] = useState<'comment' | 'answer'>('comment')
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -63,6 +73,10 @@ export default function PostPage() {
   const [likes, setLikes] = useState(0)
   const [liked, setLiked] = useState(false)
   const [bookmarked, setBookmarked] = useState(false)
+  const [replyCounts, setReplyCounts] = useState<Record<string, number>>({})
+  const [likedReplies, setLikedReplies] = useState<Record<string, boolean>>({})
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyDraft, setReplyDraft] = useState('')
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'warning'; redirect?: string } | null>(null)
   const [showSuperThanks, setShowSuperThanks] = useState(false)
   const [selectedAnswer, setSelectedAnswer] = useState<any>(null)
@@ -79,6 +93,18 @@ export default function PostPage() {
     if (user && post) { checkIfLiked(); checkIfBookmarked() }
   }, [user, post])
 
+  // Re-rank answers whenever replies load or sort changes
+  useEffect(() => {
+    const answers = replies.filter(r => r.reply_type === 'answer' && !r.parent_id)
+    if (answerSort === 'best') {
+      const keyed = answers.map(r => ({ r, key: answerScore(r) + Math.random() * 8 }))
+      keyed.sort((a, b) => b.key - a.key)
+      setSortedAnswers(keyed.map(k => k.r))
+    } else {
+      setSortedAnswers([...answers].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+    }
+  }, [replies, answerSort])
+
   const fetchPost = async () => {
     const { data } = await supabase.from('posts').select('*, profiles:author_id(display_name, avatar, username)').eq('id', id).single()
     if (data) { setPost(data); setLikes(data.likes_count || 0) }
@@ -90,7 +116,14 @@ export default function PostPage() {
       .select('*, profiles:author_id(display_name, avatar, username, payment_url, super_thanks_enabled)')
       .eq('post_id', id)
       .order('created_at', { ascending: true })
-    if (data) setReplies(data)
+    if (data) {
+      setReplies(data)
+      setReplyCounts(Object.fromEntries(data.map((r: any) => [r.id, r.likes_count || 0])))
+      if (user) {
+        const { data: rl } = await supabase.from('reply_likes').select('reply_id').eq('user_id', user.id)
+        setLikedReplies(Object.fromEntries((rl || []).map((r: any) => [r.reply_id, true])))
+      }
+    }
   }
 
   const checkIfLiked = async () => {
@@ -103,6 +136,16 @@ export default function PostPage() {
     setBookmarked(!!data)
   }
 
+  const checkRateLimit = async (newContent: string) => {
+    const { data: recent } = await supabase.from('replies').select('created_at, content').eq('author_id', user!.id).order('created_at', { ascending: false }).limit(1)
+    if (recent && recent.length > 0) {
+      const secs = (Date.now() - new Date(recent[0].created_at).getTime()) / 1000
+      if (secs < RATE_LIMIT_SECONDS) return `Slow down! Wait ${Math.ceil(RATE_LIMIT_SECONDS - secs)}s before posting again.`
+      if (recent[0].content.trim() === newContent.trim()) return 'You already posted this exact reply.'
+    }
+    return null
+  }
+
   const handleLike = async () => {
     if (!user) { requireAuth('like posts'); return }
     if (liked) {
@@ -111,6 +154,20 @@ export default function PostPage() {
     } else {
       await supabase.from('post_likes').insert([{ user_id: user.id, post_id: id }])
       setLiked(true); setLikes(likes + 1)
+    }
+  }
+
+  const handleLikeReply = async (r: any) => {
+    if (!user) { requireAuth('like replies'); return }
+    const isLiked = !!likedReplies[r.id]
+    if (isLiked) {
+      await supabase.from('reply_likes').delete().eq('user_id', user.id).eq('reply_id', r.id)
+      setLikedReplies(prev => ({ ...prev, [r.id]: false }))
+      setReplyCounts(prev => ({ ...prev, [r.id]: Math.max(0, (prev[r.id] || 0) - 1) }))
+    } else {
+      await supabase.from('reply_likes').insert([{ user_id: user.id, reply_id: r.id }])
+      setLikedReplies(prev => ({ ...prev, [r.id]: true }))
+      setReplyCounts(prev => ({ ...prev, [r.id]: (prev[r.id] || 0) + 1 }))
     }
   }
 
@@ -139,33 +196,14 @@ export default function PostPage() {
     if (!user) { requireAuth('reply to posts'); return }
     if (!content.trim()) return setToast({ message: 'Please write something first', type: 'warning' })
     if (replyType === 'answer' && !agreesToTerms) return setToast({ message: 'You must agree to the quality pledge', type: 'warning' })
-
-    // 🛡️ ANTI-SPAM CHECK
     const spam = spamReason(content, replyType === 'answer')
     if (spam) return setToast({ message: spam, type: 'warning' })
-
-    // ⏱️ RATE LIMIT + DUPLICATE CHECK
-    const { data: recent } = await supabase
-      .from('replies')
-      .select('created_at, content')
-      .eq('author_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (recent && recent.length > 0) {
-      const secsSince = (Date.now() - new Date(recent[0].created_at).getTime()) / 1000
-      if (secsSince < RATE_LIMIT_SECONDS) {
-        return setToast({ message: `Slow down! Wait ${Math.ceil(RATE_LIMIT_SECONDS - secsSince)}s before posting again.`, type: 'warning' })
-      }
-      if (recent[0].content.trim() === content.trim()) {
-        return setToast({ message: 'You already posted this exact reply.', type: 'warning' })
-      }
-    }
+    const rate = await checkRateLimit(content)
+    if (rate) return setToast({ message: rate, type: 'warning' })
 
     setLoading(true)
     const { error } = await supabase.from('replies').insert([{ post_id: id, author_id: user.id, content, image_url: imageUrl, reply_type: replyType }])
     setLoading(false)
-
     if (error) setToast({ message: 'Error: ' + error.message, type: 'warning' })
     else {
       setContent(''); setImageUrl(''); setAgreesToTerms(false)
@@ -174,12 +212,25 @@ export default function PostPage() {
     }
   }
 
+  const handleSubmitNested = async (parentId: string) => {
+    if (!user) { requireAuth('reply'); return }
+    if (!replyDraft.trim()) return setToast({ message: 'Please write something first', type: 'warning' })
+    const spam = spamReason(replyDraft, false)
+    if (spam) return setToast({ message: spam, type: 'warning' })
+    const rate = await checkRateLimit(replyDraft)
+    if (rate) return setToast({ message: rate, type: 'warning' })
+
+    const { error } = await supabase.from('replies').insert([{ post_id: id, author_id: user.id, content: replyDraft, reply_type: 'comment', parent_id: parentId }])
+    if (error) setToast({ message: 'Error: ' + error.message, type: 'warning' })
+    else {
+      setReplyDraft(''); setReplyingTo(null)
+      setToast({ message: 'Reply posted!', type: 'success' })
+      fetchReplies(); fetchPost()
+    }
+  }
+
   const openSuperThanks = (reply: any) => {
     if (!user) { requireAuth('send Super Thanks'); return }
-    if (!reply.profiles?.payment_url) {
-      setToast({ message: `${reply.profiles?.display_name || 'This creator'} hasn't set up Super Thanks yet.`, type: 'info' })
-      return
-    }
     setSelectedAnswer(reply)
     setShowSuperThanks(true)
   }
@@ -188,6 +239,69 @@ export default function PostPage() {
 
   const isImageAvatar = post.profiles?.avatar && post.profiles.avatar.startsWith('http')
   const currentWords = analyzeText(content).wordCount
+  const childrenOf = (pid: string) => replies.filter(r => r.parent_id === pid)
+  const topComments = replies.filter(r => r.reply_type !== 'answer' && !r.parent_id)
+
+  const renderReply = (r: any, depth: number) => {
+    const isAnswer = r.reply_type === 'answer'
+    const deservesThanks = isAnswer && qualifiesForSuperThanks(r.content)
+    const replyAvatarIsImage = r.profiles?.avatar && r.profiles.avatar.startsWith('http')
+    const children = childrenOf(r.id)
+    return (
+      <div key={r.id} className={depth > 0 ? 'ml-5 pl-4 border-l-2 border-blue-100' : ''}>
+        <div className={`rounded-xl border p-5 ${isAnswer ? 'bg-blue-50/30 border-blue-200' : 'bg-white border-gray-200'}`}>
+          {isAnswer && (
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-blue-100">
+              <div className="flex items-center gap-2">
+                <ThumbsUp className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-bold text-blue-700 uppercase">Top Answer</span>
+              </div>
+              {deservesThanks && (
+                <button onClick={() => openSuperThanks(r)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full hover:shadow-lg transition-all">
+                  <Gift className="w-3.5 h-3.5" /> Super Thanks
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-start gap-3">
+            <Link to={`/creator/${r.profiles?.username || 'user'}`} className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all">
+              {replyAvatarIsImage ? <img src={r.profiles.avatar} alt="" className="w-full h-full object-cover" /> : (r.profiles?.avatar || '👤')}
+            </Link>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Link to={`/creator/${r.profiles?.username || 'user'}`} className="font-semibold text-sm text-gray-900 hover:text-blue-600">{r.profiles?.display_name || 'Anonymous'}</Link>
+                <span className="text-xs text-gray-500">· {new Date(r.created_at).toLocaleDateString()}</span>
+              </div>
+              <p className={`mt-2 whitespace-pre-line ${isAnswer ? 'text-gray-800 text-base' : 'text-gray-600 text-sm'}`}>{r.content}</p>
+              {r.image_url && r.image_url.startsWith('http') && (
+                <img src={r.image_url} alt="Reply" className="w-full max-h-64 object-cover rounded-lg mt-3" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              )}
+              {/* ❤️ LIKE + 💬 REPLY BUTTONS */}
+              <div className="flex items-center gap-4 mt-3">
+                <button onClick={() => handleLikeReply(r)} className={`flex items-center gap-1 text-xs font-medium transition-colors ${likedReplies[r.id] ? 'text-red-600' : 'text-gray-500 hover:text-red-600'}`}>
+                  <Heart className={`w-3.5 h-3.5 ${likedReplies[r.id] ? 'fill-red-600' : ''}`} /> {replyCounts[r.id] || 0}
+                </button>
+                <button onClick={() => { setReplyingTo(replyingTo === r.id ? null : r.id); setReplyDraft('') }} className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 transition-colors">
+                  <CornerDownRight className="w-3.5 h-3.5" /> Reply
+                </button>
+              </div>
+              {/* Inline reply composer */}
+              {replyingTo === r.id && (
+                <div className="mt-3">
+                  <textarea value={replyDraft} onChange={e => setReplyDraft(e.target.value)} placeholder={`Reply to ${r.profiles?.display_name || 'user'}...`} rows={2} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
+                  <div className="flex gap-2 mt-2 justify-end">
+                    <button onClick={() => setReplyingTo(null)} className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-lg">Cancel</button>
+                    <button onClick={() => handleSubmitNested(r.id)} className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded-lg">Reply</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {children.length > 0 && <div className="mt-3 space-y-3">{children.map(c => renderReply(c, depth + 1))}</div>}
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
@@ -197,8 +311,8 @@ export default function PostPage() {
         open={showSuperThanks}
         onClose={() => setShowSuperThanks(false)}
         creator={selectedAnswer?.profiles?.display_name || 'Creator'}
-        paymentUrl={selectedAnswer?.profiles?.payment_url}
-        isEligible={selectedAnswer?.profiles?.super_thanks_enabled || false}
+        earnerId={selectedAnswer?.author_id}
+        replyId={selectedAnswer?.id}
       />
 
       <Link to="/" className="flex items-center gap-2 text-sm text-gray-600 mb-4"><ArrowLeft className="w-4 h-4" /> Back</Link>
@@ -240,15 +354,12 @@ export default function PostPage() {
           <button onClick={() => setReplyType('answer')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${replyType === 'answer' ? 'bg-blue-600 text-white' : 'text-gray-500'}`}>📝 Write Answer</button>
         </div>
         <textarea value={content} onChange={e => setContent(e.target.value)} placeholder={replyType === 'answer' ? "Share your detailed, high-quality answer (1,000+ words qualifies for Super Thanks)..." : "Ask a follow-up question..."} rows={replyType === 'answer' ? 6 : 3} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm resize-none" />
-
-        {/* Live quality counter for answers */}
         {replyType === 'answer' && (
           <div className={`text-xs mt-1.5 font-medium ${qualifiesForSuperThanks(content) ? 'text-green-600' : 'text-gray-500'}`}>
             {currentWords} / {SUPER_THANKS_MIN_WORDS} words
             {qualifiesForSuperThanks(content) ? ' ✅ This answer qualifies for Super Thanks!' : ' — write a detailed, valuable answer to enable Super Thanks'}
           </div>
         )}
-
         <div className="mt-3">
           <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1.5"><ImageIcon className="w-3 h-3" /> Image URL (Optional)</label>
           <input type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm mb-3" />
@@ -266,48 +377,28 @@ export default function PostPage() {
         </div>
       </div>
 
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Answers & Comments ({replies.length})</h2>
+      {/* ANSWERS with smart filter */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-bold text-gray-900">Answers ({sortedAnswers.length})</h2>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={() => setAnswerSort('best')} className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${answerSort === 'best' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
+            <Sparkles className="w-3 h-3" /> Best
+          </button>
+          <button onClick={() => setAnswerSort('new')} className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${answerSort === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
+            <Clock className="w-3 h-3" /> Newest
+          </button>
+        </div>
+      </div>
+      <div className="space-y-4 mb-8">
+        {sortedAnswers.length === 0 && <p className="text-sm text-gray-500 bg-white border border-gray-200 rounded-xl p-4 text-center">No answers yet. Be the first expert!</p>}
+        {sortedAnswers.map(r => renderReply(r, 0))}
+      </div>
+
+      {/* COMMENTS (chronological conversations) */}
+      <h2 className="text-lg font-bold text-gray-900 mb-3">Comments ({topComments.length})</h2>
       <div className="space-y-4">
-        {replies.map((r: any) => {
-          const isAnswer = r.reply_type === 'answer'
-          const deservesThanks = isAnswer && qualifiesForSuperThanks(r.content)
-          const replyAvatarIsImage = r.profiles?.avatar && r.profiles.avatar.startsWith('http')
-          return (
-            <div key={r.id} className={`rounded-xl border p-5 ${isAnswer ? 'bg-blue-50/30 border-blue-200' : 'bg-white border-gray-200'}`}>
-              {isAnswer && (
-                <div className="flex items-center justify-between mb-3 pb-3 border-b border-blue-100">
-                  <div className="flex items-center gap-2">
-                    <ThumbsUp className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-bold text-blue-700 uppercase">Top Answer</span>
-                  </div>
-                  {/* Super Thanks ONLY on answers that pass the 1,000-word quality gate */}
-                  {deservesThanks && (
-                    <button onClick={() => openSuperThanks(r)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full hover:shadow-lg transition-all">
-                      <Gift className="w-3.5 h-3.5" /> Super Thanks
-                    </button>
-                  )}
-                </div>
-              )}
-              <div className="flex items-start gap-3">
-                <Link to={`/creator/${r.profiles?.username || 'user'}`} className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-lg flex-shrink-0 overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all">
-                  {replyAvatarIsImage ? <img src={r.profiles.avatar} alt="" className="w-full h-full object-cover" /> : (r.profiles?.avatar || '👤')}
-                </Link>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Link to={`/creator/${r.profiles?.username || 'user'}`} className="font-semibold text-sm text-gray-900 hover:text-blue-600">
-                      {r.profiles?.display_name || 'Anonymous'}
-                    </Link>
-                    <span className="text-xs text-gray-500">· {new Date(r.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <p className={`mt-2 whitespace-pre-line ${isAnswer ? 'text-gray-800 text-base' : 'text-gray-600 text-sm'}`}>{r.content}</p>
-                  {r.image_url && r.image_url.startsWith('http') && (
-                    <img src={r.image_url} alt="Reply" className="w-full max-h-64 object-cover rounded-lg mt-3" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        })}
+        {topComments.length === 0 && <p className="text-sm text-gray-500 bg-white border border-gray-200 rounded-xl p-4 text-center">No comments yet.</p>}
+        {topComments.map(r => renderReply(r, 0))}
       </div>
     </div>
   )
