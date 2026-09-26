@@ -45,3 +45,6 @@ tsconfig.tsbuildinfo
 # OS
 Thumbs.db.env
 .env
+.env
+seed.cjs
+seed.js
