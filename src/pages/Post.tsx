@@ -210,7 +210,7 @@ export default function PostPage() {
     } else {
       await supabase.from('reply_likes').insert([{ user_id: user.id, reply_id: r.id }])
       setLikedReplies(prev => ({ ...prev, [r.id]: true }))
-      setReplyCounts(prev => ({ ...prev, [r.id]: (prev[r.id] || 0) + 1) }))
+      setReplyCounts(prev => ({ ...prev, [r.id]: (prev[r.id] || 0) + 1 }))
     }
   }
 
